@@ -10,7 +10,6 @@ ob_start();
 if (!function_exists('p')) {
 	function p($var, $is_return = false) {
 		$result = htmlspecialchars(print_r($var, true), ENT_QUOTES, 'UTF-8');
-		// highlight_string
 		$result = '<pre>'.$result.'</pre>';
 		if ($is_return) {
 			return $result;
@@ -24,7 +23,7 @@ require('Client.php');
 
 $app_id     = 'zsg7ldlsnloiqr9d';
 $app_secret = 'xu8qo1aljwtp15qjj4yq11t1yir9fut8';
-$client_url = 'http://'.$_SERVER['HTTP_HOST'].'/api_client/';
+$client_url = 'http://'.$_SERVER['HTTP_HOST'].'/';
 
 /**
  * Рзибрает строку со списком параметров превращае ее в массив
@@ -59,7 +58,7 @@ try {
 		unset($_SESSION['token']);
 		unset($_SESSION['expires']);
 		// Редиректим на себя же, чтоб убрать код из GET параметра
-		header("Location: ".$client_url ,true, 301);
+		header("Location: ".$client_url, true, 301);
 	}
 
 	// если пришел ответ $redirect_uri с кодом, получаем token и сохраняем его в сессию
@@ -86,7 +85,6 @@ try {
 	if (@$_SESSION['user']) {
 		// список методов API
 		$methods = require 'methods.php';
-		//sort($methods);
 
 		// отправка тестового запроса
 		if (!empty($_POST['method']) && isset($_POST['get'], $_POST['post'])) {
