@@ -200,7 +200,7 @@ class Pro_Api_Client {
 	private function executeRequest($url, array $parameters = array(), $method = self::HTTP_GET) {
 		$curl_options = array(
 			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_SSL_VERIFYPEER => false, // TODO отключить
+			CURLOPT_SSL_VERIFYPEER => true,
 			CURLOPT_CUSTOMREQUEST  => $method
 		);
 
