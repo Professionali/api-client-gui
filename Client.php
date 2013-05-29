@@ -14,7 +14,7 @@ class Pro_Api_Client {
 	/**
 	 * Хост для апи
 	 */
-	const API_HOST = 'http://api.professionali.ru';
+	const API_HOST = 'https://api.professionali.ru';
 
 	/**
 	 * Методы API
@@ -31,6 +31,7 @@ class Pro_Api_Client {
 	 */
 	const NAME_ACCESS_TOKEN = 'access_token';
 	const NAME_EXPIRES_IN = 'expires_in';
+	const NAME_SIGNATURE = 'signature';
 
 	/**
 	 * Вид отображения окна авторизации
@@ -113,18 +114,22 @@ class Pro_Api_Client {
 	 * @return array
 	 */
 	public function getAccessTokenFromCode($code, $redirect_uri) {
-		$parameters = array(
-			'code'          => $code,
-			'redirect_uri'  => $redirect_uri,
-			'client_id'     => $this->app_id,
-			'client_secret' => $this->app_secret,
-		);
-		$response = $this->executeRequest(Pro_Api_Client::API_HOST.Pro_Api_Client::POINT_GET_TOKEN, $parameters, self::HTTP_POST);
-		if (isset($response['result'][self::NAME_ACCESS_TOKEN])) {
-			$this->setAccessToken($response['result'][self::NAME_ACCESS_TOKEN]);
-			$this->access_token_expires = strtotime($response['result'][self::NAME_EXPIRES_IN]);
+		$result = $this->executeRequest(
+			Pro_Api_Client::API_HOST.Pro_Api_Client::POINT_GET_TOKEN,
+			array(
+				'code'          => $code,
+				'redirect_uri'  => $redirect_uri,
+				'client_id'     => $this->app_id,
+				'client_secret' => $this->app_secret,
+			),
+			self::HTTP_POST
+		)->getJsonDecode();
+
+		if (isset($result[self::NAME_ACCESS_TOKEN])) {
+			$this->setAccessToken($result[self::NAME_ACCESS_TOKEN]);
+			$this->access_token_expires = time()+$result[self::NAME_EXPIRES_IN];
 		}
-		return $response['result'];
+		return $result;
 	}
 
 	/**
@@ -166,13 +171,14 @@ class Pro_Api_Client {
 	/**
 	 * Выполнить запрос
 	 *
-	 * @param string $ressource_url адрес защищенного ресурса
-	 * @param array  $parameters    Параметры запроса
-	 * @param string $method        Метод запроса
+	 * @param string  $ressource_url адрес защищенного ресурса
+	 * @param array   $parameters    Параметры запроса
+	 * @param string  $method        Метод запроса
+	 * @param boolean $subscribe     Подписать запорс
 	 *
-	 * @return array
+	 * @return Pro_Api_Dialogue
 	 */
-	public function fetch($resource_url, array $parameters = array(), $method = self::HTTP_GET) {
+	public function fetch($resource_url, array $parameters = array(), $method = self::HTTP_GET, $subscribe = false) {
 		// добавление токена в параметры запроса
 		if ($this->access_token) {
 			if ($method == self::HTTP_GET) {
@@ -185,6 +191,10 @@ class Pro_Api_Client {
 		if($this->getAccessToken() && $this->isExpiresAccessToken()) {
 			$this->refreshAccessToken();
 		}
+		// подписываем запрос при необходимости
+		if ($subscribe) {
+			$parameters = array_merge($parameters, array(self::NAME_SIGNATURE => $this->getSignature($resource_url, $parameters)));
+		}
 		return $this->executeRequest($resource_url, $parameters, $method);
 	}
 
@@ -195,23 +205,26 @@ class Pro_Api_Client {
 	 * @param mixed  $parameters параметры
 	 * @param string $method     метод
 	 *
-	 * @return array
+	 * @return Pro_Api_Dialogue
 	 */
 	private function executeRequest($url, array $parameters = array(), $method = self::HTTP_GET) {
 		$curl_options = array(
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_SSL_VERIFYPEER => true,
-			CURLOPT_CUSTOMREQUEST  => $method
+			CURLOPT_CUSTOMREQUEST  => $method,
+			CURLOPT_FOLLOWLOCATION => true,
+			CURLINFO_HEADER_OUT => true,
+			CURLOPT_HEADER => true,
 		);
 
 		switch($method) {
 			case self::HTTP_POST:
 				$curl_options[CURLOPT_POST] = true;
-				$curl_options[CURLOPT_POSTFIELDS] = $this->buildParams($parameters);
+				$curl_options[CURLOPT_POSTFIELDS] = http_build_query($parameters);
 				$post = $parameters;
 				break;
 			case self::HTTP_GET:
-				$url .= (strpos($url, '?')!==false ? '&' : '?') . http_build_query($this->buildParams($parameters), null, '&');
+				$url .= (strpos($url, '?')!==false ? '&' : '?') . http_build_query($parameters);
 				$post = array();
 				break;
 		}
@@ -219,14 +232,13 @@ class Pro_Api_Client {
 
 		$ch = curl_init();
 		curl_setopt_array($ch, $curl_options);
-		$result = curl_exec($ch);
-		$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+		$dialogue = new Pro_Api_Dialogue(curl_exec($ch), $ch, $url, $post);
 		curl_close($ch);
-		$json_decode = json_decode($result, true);
 
-		if ($http_code != 200) {
-			$code = $http_code;
+		$json_decode = $dialogue->getJsonDecode();
+
+		if ($dialogue->getHttpCode() != 200) {
+			$code = $dialogue->getHttpCode();
 			$desc = 'Неизвестная ошибка';
 			if (isset($json_decode['error'], $json_decode['description'])) {
 				$code = $json_decode['error'];
@@ -234,6 +246,16 @@ class Pro_Api_Client {
 				// токен устарел
 				if ($code == 'invalid_token') {
 					$this->refreshAccessToken();
+					switch($method) {
+						case self::HTTP_POST: {
+							$url = preg_replace('/('.self::NAME_ACCESS_TOKEN.'=)[a-z\d]{32}/', '$1'.$token, $url);
+							break;
+						}
+						case self::HTTP_GET: {
+							$parameters[self::NAME_ACCESS_TOKEN] = $token;
+							break;
+						}
+					}
 					return $this->executeRequest($url, $parameters, $method);
 				}
 				// токен не найден
@@ -245,62 +267,10 @@ class Pro_Api_Client {
 				$code = $json_decode['code'];
 				$desc = $json_decode['error'];
 			}
-			throw new Pro_Api_Exception($code, $desc, $http_code);
+			throw new Pro_Api_Exception($code, $desc, $dialogue);
 		}
 
-		return array(
-			'result'       => $json_decode === null ? $result : $json_decode,
-			'code'         => $http_code,
-			'content_type' => $content_type,
-			'url'          => $url,
-			'post'         => $post
-		);
-	}
-
-	/**
-	 * Строитесльство списка параметров из многомерного массива
-	 * 
-	 * На входе:
-	 * <code>
-	 *  array(
-	 *    'a1' => array(
-	 *      'b1' => 33,
-	 *      'b2' => array(
-	 *        'c1' => array(44, 88),
-	 *        'c2' => 66
-	 *      )
-	 *    ),
-	 *    'a2' => 11
-	 *  )
-	 * </code>
-	 * 
-	 * На выходе:
-	 * <code>
-	 *  array(
-	 *    'a1[b1]' => 33,
-	 *    'a1[b2][c1][0]' => 44,
-	 *    'a1[b2][c1][1]' => 88,
-	 *    'a1[b2][c2]' => 66,
-	 *    'a2' => 11
-	 *  )
-	 * </code>
-	 * 
-	 * @param array  $params Список параметров
-	 * @param string $prefix Префикс имени
-	 * 
-	 * @return array
-	 */
-	private function buildParams(array $params, $prefix = '') {
-		$result = array();
-		foreach ($params as $name => $param) {
-			$name = $prefix ? $prefix.'['.$name.']' : $name;
-			if (is_array($param)) {
-				$result = array_merge($result, $this->buildParams($param, $name));
-			} else {
-				$result[$name] = $param;
-			}
-		}
-		return $result;
+		return $dialogue;
 	}
 
 	/**
@@ -321,16 +291,16 @@ class Pro_Api_Client {
 	 * @return array
 	 */
 	public function refreshAccessToken() {
-		$response = $this->executeRequest(
+		$result = $this->executeRequest(
 			self::API_HOST.self::POINT_REFRESH_TOKEN,
 			array(self::NAME_ACCESS_TOKEN => $this->access_token),
 			self::HTTP_GET
-		);
-		if (isset($response['result'][self::NAME_ACCESS_TOKEN])) {
-			$this->setAccessToken($response['result'][self::NAME_ACCESS_TOKEN]);
-			$this->access_token_expires = strtotime($response['result'][self::NAME_EXPIRES_IN]);
+		)->getJsonDecode();
+		if (isset($result[self::NAME_ACCESS_TOKEN])) {
+			$this->setAccessToken($result[self::NAME_ACCESS_TOKEN]);
+			$this->access_token_expires = strtotime($result[self::NAME_EXPIRES_IN]);
 		}
-		return $response['result'];
+		return $result;
 	}
 
 	/**
@@ -350,6 +320,220 @@ class Pro_Api_Client {
 		return $response['result'][0];
 	}
 
+	/**
+	 * Строит сигнатуру для ссылки с POST параметрами
+	 *
+	 * @param string $url  Ссылка
+	 * @param array  $post POST параметры
+	 *
+	 * @return string
+	 */
+	private function getSignature($url, array $post = array()) {
+		$and = (strpos($url, '?') === false) ? '?' : '&';
+		$parsed = parse_url($url.$and.http_build_query($post));
+
+		// параметры запроса
+		if (isset($parsed['query'])) {
+			parse_str($parsed['query'], $parsed['query']);
+		} else {
+			$parsed['query'] = array();
+		}
+
+		$url_hash = '';
+		if (!empty($parsed['query'])) {
+			unset($parsed['query'][self::NAME_ACCESS_TOKEN], $parsed['query'][self::NAME_SIGNATURE]);
+			ksort($parsed['query']);
+			$url_hash .= implode('', array_keys($parsed['query']));
+			$url_hash .= implode('', array_values($parsed['query']));
+		}
+		unset($parsed['query']);
+		ksort($parsed);
+		$url_hash .= implode('', array_values($parsed));
+
+		// хэш url с секретным кодом приложения
+		return md5(md5($url_hash).$this->app_secret);
+	}
+
+}
+/**
+ * Диалог между клиентом и сервером API
+ */
+class Pro_Api_Dialogue {
+
+	/**
+	 * URL запроса
+	 *
+	 * @var string
+	 */
+	private $url;
+
+	/**
+	 * POST параметры запорса
+	 *
+	 * @var array
+	 */
+	private $post;
+
+	/**
+	 * HTTP код ответа
+	 *
+	 * @var integer
+	 */
+	private $http_code;
+
+	/**
+	 * Content-Type ответа
+	 *
+	 * @var string
+	 */
+	private $content_type;
+
+	/**
+	 * HTTP заголовки запроса
+	 *
+	 * @var array
+	 */
+	private $request;
+
+	/**
+	 * HTTP заголовки ответа
+	 *
+	 * @var array
+	 */
+	private $response;
+
+	/**
+	 * Тело ответа
+	 *
+	 * @var array
+	 */
+	private $body;
+
+	/**
+	 * Декодированный JSON тела ответа
+	 *
+	 * @var mixed
+	 */
+	private $json_decode;
+
+
+	/**
+	 * Конструктор
+	 *
+	 * @param string   $response Результат запорса
+	 * @param resource $ch       CURL хендлер
+	 * @param string   $url      URL запроса
+	 * @param array    $post     POST параметры запорса
+	 *
+	 * @param array $post
+	 */
+	public function __construct($response, $ch, $url, array $post = array()) {
+		$this->url = $url;
+		$this->post = $post;
+		$this->http_code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		$this->content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+
+		// разбор запроса к серверу
+		$this->request = str_replace("\r\n", "\n", curl_getinfo($ch, CURLINFO_HEADER_OUT));
+		list($this->request, ) = explode("\n\n", $this->request);
+		$this->request = explode("\n", $this->request);
+
+		// разбор ответа от сервера
+		$response = explode("\n\n", str_replace("\r\n", "\n", $response));
+		$this->body = array_pop($response);
+		$this->response = explode("\n", implode("\n", $response));
+		$this->json_decode = json_decode($this->body, true);
+	}
+
+	/**
+	 * Возвращает URL запроса
+	 *
+	 * @return string
+	 */
+	public function getUrl() {
+		return $this->url;
+	}
+
+	/**
+	 * Возвращает POST параметры запорса
+	 *
+	 * @return array
+	 */
+	public function getPost() {
+		return $this->post;
+	}
+
+	/**
+	 * Возвращает HTTP код ответа
+	 *
+	 * @return integer
+	 */
+	public function getHttpCode() {
+		return $this->http_code;
+	}
+
+	/**
+	 * Возвращает Content-Type ответа
+	 *
+	 * @return string
+	 */
+	public function getContentType() {
+		return $this->content_type;
+	}
+
+	/**
+	 * Возвращает HTTP заголовки запроса
+	 *
+	 * @return array
+	 */
+	public function getRequest() {
+		return $this->request;
+	}
+
+	/**
+	 * Возвращает HTTP заголовки ответа
+	 *
+	 * @return array
+	 */
+	public function getResponse() {
+		return $this->response;
+	}
+
+	/**
+	 * Возвращает тело ответа
+	 *
+	 * @return array
+	 */
+	public function getBody() {
+		return $this->body;
+	}
+
+	/**
+	 * Возвращает декодированный JSON тела ответа
+	 *
+	 * @return array
+	 */
+	public function getJsonDecode() {
+		return $this->json_decode;
+	}
+
+	/**
+	 * Возвращает параметры запроса в виде массива
+	 *
+	 * @return array
+	 */
+	public function toArray() {
+		return array(
+			'url'          => $this->url,
+			'post'         => $this->post,
+			'request'      => $this->request,
+			'http_code'    => $this->http_code,
+			'content_type' => $this->content_type,
+			'response'     => $this->response,
+			'body'         => $this->body,
+			'json_decode'  => $this->json_decode,
+		);
+	}
 }
 
 /**
@@ -371,22 +555,30 @@ class Pro_Api_Exception extends Exception {
 	 */
 	private $description;
 
+	/**
+	 * Диалог
+	 *
+	 * @var Pro_Api_Dialogue
+	 */
+	private $dialogue;
+
 
 	/**
 	 * Конструктор
 	 *
-	 * @param string  $error
-	 * @param string  $description
-	 * @param integer $code
+	 * @param string           $error       Ошибка
+	 * @param string           $description Описание ошибки
+	 * @param Pro_Api_Dialogue $dialogue    Диалог
 	 */
-	public function __construct($error, $description, $code) {
-		$this->error = $error;
+	public function __construct($error, $description, Pro_Api_Dialogue $dialogue) {
+		$this->error       = $error;
+		$this->dialogue    = $dialogue;
 		$this->description = $description;
-		parent::__construct($error, $code);
+		parent::__construct($error, $dialogue->getHttpCode());
 	}
 
 	/**
-	 * Получить ошибку
+	 * Возвращает ошибку
 	 *
 	 * @return string
 	 */
@@ -395,12 +587,21 @@ class Pro_Api_Exception extends Exception {
 	}
 
 	/**
-	 * Получить описание
+	 * Возвращает описание ошибки
 	 *
 	 * @return string
 	 */
 	public function getDescription() {
 		return $this->description;
+	}
+
+	/**
+	 * Возвращает диалог
+	 *
+	 * @return string
+	 */
+	public function getDialogue() {
+		return $this->dialogue;
 	}
 
 }

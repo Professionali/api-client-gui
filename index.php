@@ -14,7 +14,6 @@ if (!function_exists('p')) {
 		if ($is_return) {
 			return $result;
 		}
-
 		print $result;
 	}
 }
@@ -58,7 +57,7 @@ try {
 		unset($_SESSION['token']);
 		unset($_SESSION['expires']);
 		// Редиректим на себя же, чтоб убрать код из GET параметра
-		header("Location: ".$client_url, true, 301);
+		header("Location: ".$client_url ,true, 301);
 	}
 
 	// если пришел ответ $redirect_uri с кодом, получаем token и сохраняем его в сессию
@@ -85,27 +84,29 @@ try {
 	if (@$_SESSION['user']) {
 		// список методов API
 		$methods = require 'methods.php';
+		//sort($methods);
 
 		// отправка тестового запроса
 		if (!empty($_POST['method']) && isset($_POST['get'], $_POST['post'])) {
 			$url = Pro_Api_Client::API_HOST.'/'.$_POST['method'].'.json';
 			// собираем get и post параметры
-			$get  = array_merge(
-				array(Pro_Api_Client::NAME_ACCESS_TOKEN => $_SESSION['token']),
-				collectParams($_POST['get'])
-			);
+			$get  = collectParams($_POST['get']);
 			$post = collectParams($_POST['post']);
 			// отправляем запрос
 			if ($post) {
-				$and = (strpos($url, '?') !== false) ? '&' : '?';
-				$response = $api->fetch($url.$and.http_build_query($get, null, '&'), $post, Pro_Api_Client::HTTP_POST);
+				if ($get) {
+					$url .= (strpos($url, '?') !== false) ? '&' : '?';
+					$url .= http_build_query($get, null, '&');
+				}
+				$dialogue = $api->fetch($url, $post, Pro_Api_Client::HTTP_POST, !empty($_POST['subscribe']));
 			} else {
-				$response = $api->fetch($url, $get, Pro_Api_Client::HTTP_GET);
+				$dialogue = $api->fetch($url, $get, Pro_Api_Client::HTTP_GET, !empty($_POST['subscribe']));
 			}
 		}
 	}
 
 } catch (Pro_Api_Exception $e) {
+	$dialogue = $e->getDialogue();
 	if ($error_message = $e->getError()) {
 		$error_message .= $e->getDescription() ? ' ('.$e->getDescription().')' : '';
 	} else {
@@ -124,9 +125,6 @@ ob_end_flush();
 	</head>
 	<body>
 		<h1>API клиент professionali.ru</h1>
-		<?if(isset($error_message)):?>
-			<p>Ошибка: <strong><?=$error_message?></strong></p>
-		<?endif;?>
 		<?if(isset($user)):?>
 			<h3>Текущий пользователь</h3>
 			<p>
@@ -134,14 +132,13 @@ ob_end_flush();
 				<a href="<?=$user['link']?>"><?=$user['name']?></a><br/>
 				<a href="<?=$exit_uri?>">Выход</a>
 			</p>
-			<?if(!empty($response)):?>
+			<?if(isset($error_message)):?>
+				<p>Ошибка: <strong><?=$error_message?></strong></p>
+			<?endif;?>
+			<?if($dialogue):?>
 				<p>
-				<h3>Результат запроса</h3>
-				<?if(!is_array($response['result'])):?>
-					<?=$response['result']?>
-					<?unset($response['result'])?>
-				<?endif;?>
-				<?p($response)?>
+					<h3>Результат запроса</h3>
+					<?p($dialogue->toArray())?>
 				</p>
 			<?endif;?>
 			<form method="post" action="">
@@ -161,8 +158,10 @@ ob_end_flush();
 			<?endforeach;?>
 			</select>
 			.json<br />
-			<strong>Токен</strong><br />
-			<input type="text" value="<?=$_SESSION['token']?>" disabled="disabled" size="32" /><br />
+			<strong>Токен</strong>
+			<input type="text" value="<?=$_SESSION['token']?>" size="32" /><br />
+			<strong>Подписать запрос</strong>
+			<input type="checkbox" name="subscribe" <?if(!empty($_POST['subscribe'])):?> checked="checked"<?endif?> value="yes" /><br />
 			<strong>Get параметры</strong><br />
 			<textarea name="get" cols="60" rows="7"><?=isset($_POST['get']) ? $_POST['get'] : ''?></textarea><br />
 			<strong>Post параметры</strong><br />
