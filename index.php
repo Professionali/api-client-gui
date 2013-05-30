@@ -1,7 +1,6 @@
 <?php
 header('Content-type=text/html;charset=utf-8');
 session_start();
-ob_start();
 
 /**
  * Функция отладки, обычно определяется во внешней библиотеке debuger
@@ -17,7 +16,9 @@ if (!function_exists('p')) {
 	}
 }
 
-require('Client.php');
+require 'client/Pro/Api/Client.php';
+require 'client/Pro/Api/Dialogue.php';
+require 'client/Pro/Api/Exception.php';
 
 $app_id     = 'zsg7ldlsnloiqr9d';
 $app_secret = 'xu8qo1aljwtp15qjj4yq11t1yir9fut8';
@@ -113,8 +114,6 @@ try {
 	}
 }
 
-
-ob_end_flush();
 ?><!doctype html>
 <html>
 	<head>
