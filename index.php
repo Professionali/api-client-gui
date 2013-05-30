@@ -1,5 +1,4 @@
 <?php
-
 header('Content-type=text/html;charset=utf-8');
 session_start();
 ob_start();
@@ -115,7 +114,6 @@ try {
 }
 
 
-
 ob_end_flush();
 ?><!doctype html>
 <html>
@@ -135,7 +133,7 @@ ob_end_flush();
 			<?if(isset($error_message)):?>
 				<p>Ошибка: <strong><?=$error_message?></strong></p>
 			<?endif;?>
-			<?if($dialogue):?>
+			<?if(isset($dialogue)):?>
 				<p>
 					<h3>Результат запроса</h3>
 					<?p($dialogue->toArray())?>
