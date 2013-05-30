@@ -312,12 +312,12 @@ class Pro_Api_Client {
 	 * @return array
 	 */
 	public function getCurrentUser() {
-		$response = $this->fetch(
+		$result = $this->fetch(
 			Pro_Api_Client::API_HOST.Pro_Api_Client::POINT_GET_CURRENT,
 			array(self::NAME_ACCESS_TOKEN => $this->access_token),
 			self::HTTP_GET
-		);
-		return $response['result'][0];
+		)->getJsonDecode();
+		return $result[0];
 	}
 
 	/**
