@@ -13,15 +13,17 @@
                 <a href="<?=$user['link']?>"><?=$user['name']?></a><br/>
                 <a href="<?=$exit_uri?>">Выход</a>
             </p>
-            <?if(isset($error_message)):?>
-                <p>Ошибка: <strong><?=$error_message?></strong></p>
-            <?endif;?>
-            <?if(isset($dialogue)):?>
-                <p>
-                    <h3>Результат запроса</h3>
-                    <?p($dialogue->toArray())?>
-                </p>
-            <?endif;?>
+        <?endif;?>
+        <?if(isset($error_message)):?>
+            <p>Ошибка: <strong><?=$error_message?></strong></p>
+        <?endif;?>
+        <?if(isset($dialogue)):?>
+            <p>
+                <h3>Результат запроса</h3>
+                <?p($dialogue->toArray())?>
+            </p>
+        <?endif;?>
+        <?if(isset($user)):?>
             <form method="post" action="">
             <h3>Сборщик запроса</h3>
             <strong>Метод Api</strong><br />
@@ -30,7 +32,7 @@
             <?foreach($methods as $section => $methods):?>
                 <optgroup label="<?=ucwords($section)?>">
                 <?foreach ($methods as $method):?>
-                    <? $path = (isset($method['version']) ? 'v'.$method['version'].'/' : '').$section.'/'.$method['method']?>
+                    <? $path = $section.'/'.$method['method']?>
                     <option<?if(isset($_POST['method']) && $_POST['method'] == $path):?> selected="selected"<?endif;?> value="<?=$path?>">
                         <?=$method['method']?><?if(isset($method['version'])):?> (v<?=$method['version']?>)<?endif;?>
                     </option>
