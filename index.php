@@ -50,6 +50,7 @@ try {
 
     // Создаем API клиента
     $api = new Pro_Api_Client(APP_CODE, APP_SECRET, $_SESSION['token'], $_SESSION['expires']);
+    $api->setDebugMode(true);
 
     // если хотели разавторизироваться
     if (isset($_GET['exit'], $_SESSION['token'])) {
