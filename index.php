@@ -83,11 +83,7 @@ try {
     }
 
 
-    if (@$_SESSION['user']) {
-        // список методов API
-        $methods = require 'methods.php';
-        //sort($methods);
-
+    if (!empty($_SESSION['user'])) {
         // отправка тестового запроса
         if (!empty($_POST['method']) && isset($_POST['get'], $_POST['post'])) {
             $url = Pro_Api_Client::API_HOST.'/'.$_POST['method'].'.json';
