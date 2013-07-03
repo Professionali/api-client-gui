@@ -53,6 +53,11 @@ pre {
     background: #F5F5F5;
     border: 1px #DDD solid;
 }
+textarea,
+input[type=text] {
+    border: 1px #333 solid;
+    width: 500px;
+}
 #user {
     position: absolute;
     top: 10px;
@@ -107,20 +112,7 @@ pre {
                     <small><?=Pro_Api_Client::API_HOST?></small>
                 </div>
                 <div class="col">
-                    <input type="text" name="collector[path]" id="collector-path" value="<?=$collector['path']?>" placeholder="/v7/users/me/" />
-                </div>
-            </div>
-            <div class="row">
-                <div class="col">
-                    <label for="collector-method">HTTP метод</label>
-                </div>
-                <div class="col">
-                    <select name="collector[method]" id="collector-method">
-                        <option<?if($collector['method'] == Pro_Api_Client::HTTP_GET):?> selected="selected"<?endif?>><?=Pro_Api_Client::HTTP_GET?></option>
-                        <option<?if($collector['method'] == Pro_Api_Client::HTTP_POST):?> selected="selected"<?endif?>><?=Pro_Api_Client::HTTP_POST?></option>
-                        <option<?if($collector['method'] == Pro_Api_Client::HTTP_PUT):?> selected="selected"<?endif?>><?=Pro_Api_Client::HTTP_PUT?></option>
-                        <option<?if($collector['method'] == Pro_Api_Client::HTTP_DELETE):?> selected="selected"<?endif?>><?=Pro_Api_Client::HTTP_DELETE?></option>
-                    </select>
+                    <input type="text" name="collector[path]" id="collector-path" value="<?=$collector['path']?>" placeholder="/v6/users/get.json" />
                 </div>
             </div>
             <div class="row">
@@ -141,6 +133,19 @@ pre {
             </div>
             <div class="row">
                 <div class="col">
+                    <label for="collector-method">HTTP метод</label>
+                </div>
+                <div class="col">
+                    <select name="collector[method]" id="collector-method">
+                        <option<?if($collector['method'] == Pro_Api_Client::HTTP_GET):?> selected="selected"<?endif?>><?=Pro_Api_Client::HTTP_GET?></option>
+                        <option<?if($collector['method'] == Pro_Api_Client::HTTP_POST):?> selected="selected"<?endif?>><?=Pro_Api_Client::HTTP_POST?></option>
+                        <option<?if($collector['method'] == Pro_Api_Client::HTTP_PUT):?> selected="selected"<?endif?>><?=Pro_Api_Client::HTTP_PUT?></option>
+                        <option<?if($collector['method'] == Pro_Api_Client::HTTP_DELETE):?> selected="selected"<?endif?>><?=Pro_Api_Client::HTTP_DELETE?></option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
                     <label for="collector-parameters">Параметры зпроса</label><br />
                     <small>
                         <strong>Ключ значение:</strong><br />
@@ -149,7 +154,7 @@ pre {
                         key[]=value1<br />
                         key[]=value2<br />
                         <strong>Хэш значений:</strong><br />
-                        key[subkey]=value</p>
+                        key[subkey]=value
                     </small>
                 </div>
                 <div class="col">
