@@ -29,7 +29,7 @@ try {
 
     // если пришел ответ $redirect_uri с кодом, получаем token и сохраняем его в сессию
     if (isset($_GET['code'])) {
-        $api->getAccessTokenFromCode($_GET['code'], CLIENT_URL);
+        $api->getAccessTokenFromCode($_GET['code']);
         // Получаем данные о пользователе
         $_SESSION['user'] = $api->getCurrentUser();
         // Редиректим на себя же, чтоб убрать код из GET параметра
