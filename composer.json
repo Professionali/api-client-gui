@@ -1,0 +1,26 @@
+{
+    "name": "professionali/api-client-gui",
+    "license": "BSD-3-Clause",
+    "type": "project",
+    "description": "GUI API client for execute request for api.professionali.ru",
+    "homepage": "http://professionali.ru",
+    "version": "1.0.1",
+    "authors": [
+        {
+            "name": "Professionali",
+            "homepage": "http://professionali.ru"
+        },
+        {
+            "name": "Valetin Gernovich",
+            "email": "gernovich@ya.ru"
+        },
+        {
+            "name": "Professionali on GitHub",
+            "homepage": "https://github.com/Professionali/api-client-gui"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.0",
+        "professionali/api-client": "1.*"
+    }
+}

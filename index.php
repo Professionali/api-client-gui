@@ -2,9 +2,7 @@
 header('Content-type=text/html;charset=utf-8');
 session_start();
 
-require 'client/Pro/Api/Client.php';
-require 'client/Pro/Api/Dialogue.php';
-require 'client/Pro/Api/Exception.php';
+require 'vendor/autoload.php';
 
 define('APP_CODE', 'zsg7ldlsnloiqr9d');
 define('APP_SECRET', 'xu8qo1aljwtp15qjj4yq11t1yir9fut8');
